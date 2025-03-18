@@ -1,4 +1,4 @@
-const FHIR_SERVER_URL = "https://cdr.fhirlab.net/fhir"
+const FHIR_SERVER_URL = "https://cdr.upmsilab.org/fhir"
 
 /**
  * Fetches a list of patients from the FHIR server

@@ -20,8 +20,8 @@ const formSchema = z.object({
   birthDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be in YYYY-MM-DD format"),
   phone: z.string().optional(),
   email: z.string().email().optional().or(z.literal("")),
-  address: z.string().optional(),
-  city: z.string().optional(),
+  address: z.string().min(1, "Address is required"),
+  city: z.string().min(1, "City is required"),
   state: z.string().optional(),
   postalCode: z.string().optional(),
   country: z.string().optional(),
@@ -50,9 +50,19 @@ export default function CreatePatient({ onSuccess }) {
   const onSubmit = async (data) => {
     try {
       setStatus({ loading: true, success: false, error: null })
-
+      // Build the telecom array only if phone or email is provided
+      const telecom = []
+      if (data.phone) {
+        telecom.push({ system: "phone", value: data.phone })
+      }
+      if (data.email && data.email.trim() !== "") {
+        telecom.push({ system: "email", value: data.email })
+      }
       const patientResource = {
         resourceType: "Patient",
+        meta: {
+            profile: ["http://fhir.local/fhir/StructureDefinition/MyPatientProfile"],
+          },
         name: [
           {
             use: "official",
@@ -62,21 +72,16 @@ export default function CreatePatient({ onSuccess }) {
         ],
         gender: data.gender,
         birthDate: data.birthDate,
-        telecom: [
-          ...(data.phone ? [{ system: "phone", value: data.phone }] : []),
-          ...(data.email ? [{ system: "email", value: data.email }] : []),
-        ],
-        address: data.address
-          ? [
-              {
-                line: [data.address],
-                city: data.city,
-                state: data.state,
-                postalCode: data.postalCode,
-                country: data.country,
-              },
-            ]
-          : [],
+        ...(telecom.length > 0 ? { telecom } : {}),
+        ...(data.address ? {
+          address: [{
+            line: [data.address],
+            city: data.city,
+            state: data.state,
+            postalCode: data.postalCode,
+            country: data.country,
+          }]
+        } : {}),
       }
 
       await createPatient(patientResource)
