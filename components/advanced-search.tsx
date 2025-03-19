@@ -12,6 +12,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { AlertCircle, Search } from "lucide-react"
 import { searchPatients } from "@/lib/fhir-service"
+import { useServer } from "@/contexts/server-context"
 
 const searchSchema = z.object({
   name: z.string().optional(),
@@ -26,6 +27,7 @@ const searchSchema = z.object({
 })
 
 export default function AdvancedSearch({ onSearchResults }) {
+  const { serverUrl } = useServer()
   const [status, setStatus] = useState({ loading: false, error: null })
 
   const form = useForm({
@@ -50,13 +52,15 @@ export default function AdvancedSearch({ onSearchResults }) {
       // Filter out empty fields
       const searchParams = Object.fromEntries(Object.entries(data).filter(([_, value]) => value !== ""))
 
+      // Check if at least one search parameter is provide  value]) => value !== ""))
+
       // Check if at least one search parameter is provided
       if (Object.keys(searchParams).length === 0) {
         setStatus({ loading: false, error: "Please provide at least one search parameter" })
         return
       }
 
-      const results = await searchPatients(searchParams)
+      const results = await searchPatients(searchParams, serverUrl)
       onSearchResults(results)
       setStatus({ loading: false, error: null })
     } catch (err) {

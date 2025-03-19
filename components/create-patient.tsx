@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
@@ -10,8 +10,9 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { AlertCircle, CheckCircle2 } from "lucide-react"
-import { createPatient } from "@/lib/fhir-service"
+import { AlertCircle, CheckCircle2, InfoIcon } from "lucide-react"
+import { createPatient, fetchOrganizations } from "@/lib/fhir-service"
+import { useServer } from "@/contexts/server-context"
 
 const formSchema = z.object({
   givenName: z.string().min(1, "First name is required"),
@@ -20,15 +21,35 @@ const formSchema = z.object({
   birthDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be in YYYY-MM-DD format"),
   phone: z.string().optional(),
   email: z.string().email().optional().or(z.literal("")),
-  address: z.string().min(1, "Address is required"),
-  city: z.string().min(1, "City is required"),
+  address: z.string().optional(),
+  city: z.string().optional(),
   state: z.string().optional(),
   postalCode: z.string().optional(),
   country: z.string().optional(),
+  managingOrganization: z.string().min(1, "Managing organization is required"),
 })
 
 export default function CreatePatient({ onSuccess }) {
+  const { serverUrl } = useServer()
   const [status, setStatus] = useState({ loading: false, success: false, error: null })
+  const [organizations, setOrganizations] = useState([])
+  const [loadingOrgs, setLoadingOrgs] = useState(true)
+
+  useEffect(() => {
+    const loadOrganizations = async () => {
+      try {
+        setLoadingOrgs(true)
+        const data = await fetchOrganizations(serverUrl)
+        setOrganizations(data)
+      } catch (error) {
+        console.error("Failed to load organizations:", error)
+      } finally {
+        setLoadingOrgs(false)
+      }
+    }
+
+    loadOrganizations()
+  }, [serverUrl])
 
   const form = useForm({
     resolver: zodResolver(formSchema),
@@ -44,47 +65,51 @@ export default function CreatePatient({ onSuccess }) {
       state: "",
       postalCode: "",
       country: "",
+      managingOrganization: "",
     },
   })
 
   const onSubmit = async (data) => {
     try {
       setStatus({ loading: true, success: false, error: null })
-      // Build the telecom array only if phone or email is provided
-      const telecom = []
-      if (data.phone) {
-        telecom.push({ system: "phone", value: data.phone })
-      }
-      if (data.email && data.email.trim() !== "") {
-        telecom.push({ system: "email", value: data.email })
-      }
+
       const patientResource = {
         resourceType: "Patient",
+        // Add meta.profile to declare conformance to the required profile
         meta: {
-            profile: ["http://fhir.local/fhir/StructureDefinition/MyPatientProfile"],
-          },
+          profile: ["http://fhir.local/fhir/StructureDefinition/PatientProfile2"],
+        },
         name: [
           {
             use: "official",
             family: data.familyName,
-            given: [data.givenName],
+            given: [data.givenName], // Ensure given name is included (min=1)
           },
         ],
         gender: data.gender,
         birthDate: data.birthDate,
-        ...(telecom.length > 0 ? { telecom } : {}),
-        ...(data.address ? {
-          address: [{
-            line: [data.address],
-            city: data.city,
-            state: data.state,
-            postalCode: data.postalCode,
-            country: data.country,
-          }]
-        } : {}),
+        telecom: [
+          ...(data.phone ? [{ system: "phone", value: data.phone }] : []),
+          ...(data.email ? [{ system: "email", value: data.email }] : []),
+        ],
+        address: data.address
+          ? [
+              {
+                line: [data.address],
+                city: data.city,
+                state: data.state,
+                postalCode: data.postalCode,
+                country: data.country,
+              },
+            ]
+          : [],
+        // Include managing organization (min=1)
+        managingOrganization: {
+          reference: `Organization/${data.managingOrganization}`,
+        },
       }
 
-      await createPatient(patientResource)
+      await createPatient(patientResource, serverUrl)
       setStatus({ loading: false, success: true, error: null })
       form.reset()
 
@@ -108,6 +133,19 @@ export default function CreatePatient({ onSuccess }) {
         <CardDescription>Enter the patient details to create a new patient record in the FHIR server.</CardDescription>
       </CardHeader>
       <CardContent>
+        {/* Profile information alert */}
+        <Alert className="mb-6 bg-blue-50 text-blue-800 border-blue-200">
+          <InfoIcon className="h-4 w-4 text-blue-600" />
+          <AlertTitle>Profile Requirements</AlertTitle>
+          <AlertDescription>
+            <p>This form creates patients that conform to the PatientProfile2 profile, which requires:</p>
+            <ul className="list-disc pl-5 mt-2 text-sm">
+              <li>At least one name with a given name (first name)</li>
+              <li>A managing organization</li>
+            </ul>
+          </AlertDescription>
+        </Alert>
+
         {status.success && (
           <Alert className="mb-6 bg-green-50 text-green-800 border-green-200">
             <CheckCircle2 className="h-4 w-4 text-green-600" />
@@ -126,13 +164,17 @@ export default function CreatePatient({ onSuccess }) {
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+            {/* Form fields remain the same */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <FormField
                 control={form.control}
                 name="givenName"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>First Name*</FormLabel>
+                    <FormLabel className="flex items-center">
+                      First Name*
+                      <span className="ml-1 text-xs text-muted-foreground">(Required by profile)</span>
+                    </FormLabel>
                     <FormControl>
                       <Input placeholder="John" {...field} />
                     </FormControl>
@@ -196,6 +238,38 @@ export default function CreatePatient({ onSuccess }) {
                 )}
               />
             </div>
+
+            {/* Managing Organization field - required by profile */}
+            <FormField
+              control={form.control}
+              name="managingOrganization"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="flex items-center">
+                    Managing Organization*
+                    <span className="ml-1 text-xs text-muted-foreground">(Required by profile)</span>
+                  </FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue
+                          placeholder={loadingOrgs ? "Loading organizations..." : "Select an organization"}
+                        />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {organizations.map((org) => (
+                        <SelectItem key={org.id} value={org.id}>
+                          {org.name || org.id}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormDescription>The organization responsible for managing this patient</FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <FormField

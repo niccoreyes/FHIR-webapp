@@ -7,8 +7,10 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Search, RefreshCw, Eye } from "lucide-react"
 import { fetchPatients } from "@/lib/fhir-service"
+import { useServer } from "@/contexts/server-context"
 
 export default function PatientList({ initialPatients = null, onPatientSelect = null, hideSearch = false }) {
+  const { serverUrl } = useServer()
   const [patients, setPatients] = useState(initialPatients || [])
   const [loading, setLoading] = useState(!initialPatients)
   const [error, setError] = useState(null)
@@ -23,7 +25,7 @@ export default function PatientList({ initialPatients = null, onPatientSelect = 
     try {
       setLoading(true)
       setError(null)
-      const data = await fetchPatients()
+      const data = await fetchPatients(serverUrl)
       setPatients(data)
     } catch (err) {
       setError(err.message || "Failed to load patients")
@@ -32,11 +34,12 @@ export default function PatientList({ initialPatients = null, onPatientSelect = 
     }
   }
 
+  // Refetch when serverUrl changes
   useEffect(() => {
     if (!initialPatients) {
       loadPatients()
     }
-  }, [initialPatients])
+  }, [initialPatients, serverUrl])
 
   useEffect(() => {
     if (initialPatients) {
@@ -74,7 +77,15 @@ export default function PatientList({ initialPatients = null, onPatientSelect = 
       </CardHeader>
       <CardContent>
         {error ? (
-          <div className="text-center py-4 text-red-500">{error}</div>
+          <div className="text-center py-4 text-red-500">
+            {error}
+            <div className="mt-2">
+              <Button size="sm" variant="outline" onClick={loadPatients}>
+                <RefreshCw className="h-3 w-3 mr-2" />
+                Retry
+              </Button>
+            </div>
+          </div>
         ) : loading ? (
           <div className="text-center py-4">Loading patients...</div>
         ) : filteredPatients.length === 0 ? (

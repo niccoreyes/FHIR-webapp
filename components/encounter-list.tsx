@@ -6,9 +6,11 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { fetchConditionsForEncounter } from "@/lib/fhir-service"
+import { useServer } from "@/contexts/server-context"
 import { Calendar, MapPin, ChevronDown, ChevronUp, User } from "lucide-react"
 
 export default function EncounterList({ encounters, patientId }) {
+  const { serverUrl } = useServer()
   const [expandedEncounter, setExpandedEncounter] = useState(null)
   const [conditions, setConditions] = useState({})
   const [loading, setLoading] = useState({})
@@ -25,7 +27,7 @@ export default function EncounterList({ encounters, patientId }) {
     if (!conditions[encounterId] && !loading[encounterId]) {
       try {
         setLoading((prev) => ({ ...prev, [encounterId]: true }))
-        const encounterConditions = await fetchConditionsForEncounter(encounterId)
+        const encounterConditions = await fetchConditionsForEncounter(encounterId, serverUrl)
         setConditions((prev) => ({ ...prev, [encounterId]: encounterConditions }))
       } catch (error) {
         console.error(`Error fetching conditions for encounter ${encounterId}:`, error)

@@ -1,21 +1,15 @@
-const FHIR_SERVER_URL = "https://cdr.upmsilab.org/fhir"
-
-/**
- * Fetches a list of patients from the FHIR server
- */
-export async function fetchPatients() {
+export async function fetchPatients(serverUrl) {
   try {
-    const response = await fetch(`${FHIR_SERVER_URL}/Patient?_count=100`, {
+    console.log(`Fetching patients from ${serverUrl}...`)
+    const response = await fetch(`${serverUrl}/Patient?_count=100`, {
       method: "GET",
       headers: {
         Accept: "application/fhir+json",
-        "Content-Type": "application/fhir+json",
       },
     })
 
     if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(`Failed to fetch patients: ${response.status} ${response.statusText} - ${errorText}`)
+      throw new Error(`HTTP error ${response.status}: ${response.statusText}`)
     }
 
     const data = await response.json()
@@ -29,9 +23,10 @@ export async function fetchPatients() {
 /**
  * Creates a new patient in the FHIR server
  */
-export async function createPatient(patientResource) {
+export async function createPatient(patientResource, serverUrl) {
   try {
-    const response = await fetch(`${FHIR_SERVER_URL}/Patient`, {
+    console.log(`Creating patient on ${serverUrl}...`)
+    const response = await fetch(`${serverUrl}/Patient`, {
       method: "POST",
       headers: {
         Accept: "application/fhir+json",
@@ -41,8 +36,7 @@ export async function createPatient(patientResource) {
     })
 
     if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(`Failed to create patient: ${response.status} ${response.statusText} - ${errorText}`)
+      throw new Error(`HTTP error ${response.status}: ${response.statusText}`)
     }
 
     return await response.json()
@@ -55,19 +49,18 @@ export async function createPatient(patientResource) {
 /**
  * Fetches a specific patient by ID
  */
-export async function fetchPatientById(id) {
+export async function fetchPatientById(id, serverUrl) {
   try {
-    const response = await fetch(`${FHIR_SERVER_URL}/Patient/${id}`, {
+    console.log(`Fetching patient ${id} from ${serverUrl}...`)
+    const response = await fetch(`${serverUrl}/Patient/${id}`, {
       method: "GET",
       headers: {
         Accept: "application/fhir+json",
-        "Content-Type": "application/fhir+json",
       },
     })
 
     if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(`Failed to fetch patient: ${response.status} ${response.statusText} - ${errorText}`)
+      throw new Error(`HTTP error ${response.status}: ${response.statusText}`)
     }
 
     return await response.json()
@@ -80,7 +73,7 @@ export async function fetchPatientById(id) {
 /**
  * Search for patients using various search parameters
  */
-export async function searchPatients(searchParams) {
+export async function searchPatients(searchParams, serverUrl) {
   try {
     // Construct query string from search parameters
     const queryParams = new URLSearchParams()
@@ -98,22 +91,22 @@ export async function searchPatients(searchParams) {
     // Add _count parameter to limit results
     queryParams.append("_count", "20")
 
-    const url = `${FHIR_SERVER_URL}/Patient?${queryParams.toString()}`
+    const url = `${serverUrl}/Patient?${queryParams.toString()}`
+    console.log(`Searching patients with URL: ${url}`)
 
     const response = await fetch(url, {
       method: "GET",
       headers: {
         Accept: "application/fhir+json",
-        "Content-Type": "application/fhir+json",
       },
     })
 
     if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(`Failed to search patients: ${response.status} ${response.statusText} - ${errorText}`)
+      throw new Error(`HTTP error ${response.status}: ${response.statusText}`)
     }
 
     const data = await response.json()
+
     return {
       total: data.total || 0,
       patients: data.entry?.map((entry) => entry.resource) || [],
@@ -127,19 +120,18 @@ export async function searchPatients(searchParams) {
 /**
  * Fetches the latest encounters for a patient
  */
-export async function fetchLatestEncounters(patientId, count = 5) {
+export async function fetchLatestEncounters(patientId, count = 5, serverUrl) {
   try {
-    const response = await fetch(`${FHIR_SERVER_URL}/Encounter?patient=${patientId}&_sort=-date&_count=${count}`, {
+    console.log(`Fetching encounters for patient ${patientId} from ${serverUrl}...`)
+    const response = await fetch(`${serverUrl}/Encounter?patient=${patientId}&_sort=-date&_count=${count}`, {
       method: "GET",
       headers: {
         Accept: "application/fhir+json",
-        "Content-Type": "application/fhir+json",
       },
     })
 
     if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(`Failed to fetch encounters: ${response.status} ${response.statusText} - ${errorText}`)
+      throw new Error(`HTTP error ${response.status}: ${response.statusText}`)
     }
 
     const data = await response.json()
@@ -153,19 +145,18 @@ export async function fetchLatestEncounters(patientId, count = 5) {
 /**
  * Fetches conditions associated with an encounter
  */
-export async function fetchConditionsForEncounter(encounterId) {
+export async function fetchConditionsForEncounter(encounterId, serverUrl) {
   try {
-    const response = await fetch(`${FHIR_SERVER_URL}/Condition?encounter=${encounterId}`, {
+    console.log(`Fetching conditions for encounter ${encounterId} from ${serverUrl}...`)
+    const response = await fetch(`${serverUrl}/Condition?encounter=${encounterId}`, {
       method: "GET",
       headers: {
         Accept: "application/fhir+json",
-        "Content-Type": "application/fhir+json",
       },
     })
 
     if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(`Failed to fetch conditions: ${response.status} ${response.statusText} - ${errorText}`)
+      throw new Error(`HTTP error ${response.status}: ${response.statusText}`)
     }
 
     const data = await response.json()
@@ -179,25 +170,49 @@ export async function fetchConditionsForEncounter(encounterId) {
 /**
  * Fetches conditions for a patient
  */
-export async function fetchConditionsForPatient(patientId) {
+export async function fetchConditionsForPatient(patientId, serverUrl) {
   try {
-    const response = await fetch(`${FHIR_SERVER_URL}/Condition?patient=${patientId}&_sort=-recorded-date`, {
+    console.log(`Fetching conditions for patient ${patientId} from ${serverUrl}...`)
+    const response = await fetch(`${serverUrl}/Condition?patient=${patientId}&_sort=-recorded-date`, {
       method: "GET",
       headers: {
         Accept: "application/fhir+json",
-        "Content-Type": "application/fhir+json",
       },
     })
 
     if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(`Failed to fetch conditions: ${response.status} ${response.statusText} - ${errorText}`)
+      throw new Error(`HTTP error ${response.status}: ${response.statusText}`)
     }
 
     const data = await response.json()
     return data.entry?.map((entry) => entry.resource) || []
   } catch (error) {
     console.error(`Error fetching conditions for patient ${patientId}:`, error)
+    throw error
+  }
+}
+
+/**
+ * Fetches a list of organizations from the FHIR server
+ */
+export async function fetchOrganizations(serverUrl) {
+  try {
+    console.log(`Fetching organizations from ${serverUrl}...`)
+    const response = await fetch(`${serverUrl}/Organization?_count=100`, {
+      method: "GET",
+      headers: {
+        Accept: "application/fhir+json",
+      },
+    })
+
+    if (!response.ok) {
+      throw new Error(`HTTP error ${response.status}: ${response.statusText}`)
+    }
+
+    const data = await response.json()
+    return data.entry?.map((entry) => entry.resource) || []
+  } catch (error) {
+    console.error("Error fetching organizations:", error)
     throw error
   }
 }

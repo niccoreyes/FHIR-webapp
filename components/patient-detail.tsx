@@ -9,45 +9,49 @@ import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { AlertCircle, ArrowLeft, Calendar, Phone, Mail, Home, User } from "lucide-react"
 import { fetchPatientById, fetchLatestEncounters, fetchConditionsForPatient } from "@/lib/fhir-service"
+import { useServer } from "@/contexts/server-context"
 import EncounterList from "./encounter-list"
 import ConditionList from "./condition-list"
 
 export default function PatientDetail({ patientId, onBack }) {
+  const { serverUrl } = useServer()
   const [patient, setPatient] = useState(null)
   const [encounters, setEncounters] = useState([])
   const [conditions, setConditions] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
-  useEffect(() => {
-    const loadPatientData = async () => {
-      try {
-        setLoading(true)
-        setError(null)
+  const loadPatientData = async () => {
+    try {
+      setLoading(true)
+      setError(null)
 
-        // Fetch patient details
-        const patientData = await fetchPatientById(patientId)
-        setPatient(patientData)
+      // Fetch patient details
+      const patientData = await fetchPatientById(patientId, serverUrl)
+      setPatient(patientData)
 
-        // Fetch encounters
-        const encounterData = await fetchLatestEncounters(patientId)
-        setEncounters(encounterData)
+      // Fetch encounters
+      const encounterData = await fetchLatestEncounters(patientId, 5, serverUrl)
+      setEncounters(encounterData)
 
-        // Fetch conditions
-        const conditionData = await fetchConditionsForPatient(patientId)
-        setConditions(conditionData)
-      } catch (err) {
-        setError(err.message || "Failed to load patient data")
-      } finally {
-        setLoading(false)
-      }
+      // Fetch conditions
+      const conditionData = await fetchConditionsForPatient(patientId, serverUrl)
+      setConditions(conditionData)
+    } catch (err) {
+      setError(err.message || "Failed to load patient data")
+    } finally {
+      setLoading(false)
     }
+  }
 
+  // Refetch when serverUrl changes
+  useEffect(() => {
     if (patientId) {
       loadPatientData()
     }
-  }, [patientId])
+  }, [patientId, serverUrl])
 
+  // Rest of the component remains the same...
   if (loading) {
     return (
       <Card>
