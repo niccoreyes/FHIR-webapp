@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { AlertCircle, Search } from "lucide-react"
+import { AlertCircle, Search, Server } from "lucide-react"
 import { searchPatients } from "@/lib/fhir-service"
 import { useServer } from "@/contexts/server-context"
 
@@ -24,6 +24,7 @@ const searchSchema = z.object({
   phone: z.string().optional(),
   email: z.string().email().optional().or(z.literal("")),
   address: z.string().optional(),
+  pageSize: z.enum(["10", "25", "50", "100"]).default("25"),
 })
 
 export default function AdvancedSearch({ onSearchResults }) {
@@ -42,6 +43,7 @@ export default function AdvancedSearch({ onSearchResults }) {
       phone: "",
       email: "",
       address: "",
+      pageSize: "25",
     },
   })
 
@@ -49,10 +51,13 @@ export default function AdvancedSearch({ onSearchResults }) {
     try {
       setStatus({ loading: true, error: null })
 
-      // Filter out empty fields
-      const searchParams = Object.fromEntries(Object.entries(data).filter(([_, value]) => value !== ""))
+      // Extract page size and convert to number
+      const pageSize = Number.parseInt(data.pageSize)
 
-      // Check if at least one search parameter is provide  value]) => value !== ""))
+      // Filter out empty fields and the pageSize field
+      const searchParams = Object.fromEntries(
+        Object.entries(data).filter(([key, value]) => value !== "" && key !== "pageSize"),
+      )
 
       // Check if at least one search parameter is provided
       if (Object.keys(searchParams).length === 0) {
@@ -60,7 +65,22 @@ export default function AdvancedSearch({ onSearchResults }) {
         return
       }
 
-      const results = await searchPatients(searchParams, serverUrl)
+      // If name is provided, use it for a more general search
+      // FHIR servers typically search across name parts when using the 'name' parameter
+      if (searchParams.given || searchParams.family) {
+        // If both given and family are provided, also add a general name search
+        // that combines them to catch partial matches across name segments
+        if (searchParams.given && searchParams.family) {
+          searchParams.name = `${searchParams.given} ${searchParams.family}`
+        }
+      }
+
+      console.log(`Searching patients on server: ${serverUrl}`)
+      const results = await searchPatients(searchParams, serverUrl, pageSize, 1)
+
+      // Include the search parameters in the results for pagination
+      results.searchParams = searchParams
+
       onSearchResults(results)
       setStatus({ loading: false, error: null })
     } catch (err) {
@@ -78,6 +98,14 @@ export default function AdvancedSearch({ onSearchResults }) {
         <CardDescription>Search for patients using various criteria. At least one field is required.</CardDescription>
       </CardHeader>
       <CardContent>
+        {/* Display current server information */}
+        <div className="mb-4 p-2 bg-muted rounded-md flex items-center">
+          <Server className="h-4 w-4 mr-2 text-muted-foreground" />
+          <span className="text-sm">
+            Searching on: <span className="font-medium">{serverUrl}</span>
+          </span>
+        </div>
+
         {status.error && (
           <Alert className="mb-6 bg-red-50 text-red-800 border-red-200">
             <AlertCircle className="h-4 w-4 text-red-600" />
@@ -226,6 +254,30 @@ export default function AdvancedSearch({ onSearchResults }) {
                   <FormControl>
                     <Input placeholder="123 Main St, Anytown" {...field} />
                   </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="pageSize"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Results Per Page</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger className="w-[100px]">
+                        <SelectValue placeholder="25" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="10">10</SelectItem>
+                      <SelectItem value="25">25</SelectItem>
+                      <SelectItem value="50">50</SelectItem>
+                      <SelectItem value="100">100</SelectItem>
+                    </SelectContent>
+                  </Select>
                   <FormMessage />
                 </FormItem>
               )}

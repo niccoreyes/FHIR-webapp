@@ -51,7 +51,6 @@ export default function PatientDetail({ patientId, onBack }) {
     }
   }, [patientId, serverUrl])
 
-  // Rest of the component remains the same...
   if (loading) {
     return (
       <Card>
@@ -112,9 +111,21 @@ export default function PatientDetail({ patientId, onBack }) {
   }
 
   const patientName = patient.name?.[0] || {}
-  const fullName = [patientName.prefix?.join(" "), patientName.given?.join(" "), patientName.family]
-    .filter(Boolean)
-    .join(" ")
+
+  // Format the name to include first name, middle name (if present), and last name
+  let firstName = ""
+  let middleName = ""
+
+  if (patientName.given && patientName.given.length > 0) {
+    firstName = patientName.given[0]
+
+    // If there's a second given name, it's the middle name
+    if (patientName.given.length > 1) {
+      middleName = patientName.given[1]
+    }
+  }
+
+  const fullName = [patientName.prefix?.join(" "), firstName, middleName, patientName.family].filter(Boolean).join(" ")
 
   const hasNoRecords = encounters.length === 0 && conditions.length === 0
 

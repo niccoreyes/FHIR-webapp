@@ -17,7 +17,7 @@ const ServerContext = createContext<ServerContextType | undefined>(undefined)
 
 export function ServerProvider({ children }: { children: ReactNode }) {
   // Default to UPMSILAB server
-  const [serverUrl, setServerUrl] = useState<string>(FHIR_SERVERS.UPMSILAB)
+  const [serverUrl, setServerUrl] = useState<string>(FHIR_SERVERS.FHIRLAB)
 
   // Store the selected server in localStorage
   useEffect(() => {

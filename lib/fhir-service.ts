@@ -1,19 +1,37 @@
-export async function fetchPatients(serverUrl) {
+export async function fetchPatients(serverUrl, pageSize = 100, pageNumber = 1) {
   try {
     console.log(`Fetching patients from ${serverUrl}...`)
-    const response = await fetch(`${serverUrl}/Patient?_count=100`, {
-      method: "GET",
-      headers: {
-        Accept: "application/fhir+json",
+    // Calculate offset based on page number and size
+    const offset = (pageNumber - 1) * pageSize
+
+    // Use _sort=-_lastUpdated to get the most recently updated patients first
+    // Use _count to limit results per page
+    // Use _getpagesoffset for pagination
+    const response = await fetch(
+      `${serverUrl}/Patient?_sort=-_lastUpdated&_count=${pageSize}&_getpagesoffset=${offset}`,
+      {
+        method: "GET",
+        headers: {
+          Accept: "application/fhir+json",
+        },
       },
-    })
+    )
 
     if (!response.ok) {
       throw new Error(`HTTP error ${response.status}: ${response.statusText}`)
     }
 
     const data = await response.json()
-    return data.entry?.map((entry) => entry.resource) || []
+
+    // Return both the patient resources and pagination info
+    return {
+      patients: data.entry?.map((entry) => entry.resource) || [],
+      total: data.total || 0,
+      links: data.link || [],
+      pageSize,
+      pageNumber,
+      totalPages: Math.ceil((data.total || 0) / pageSize),
+    }
   } catch (error) {
     console.error("Error fetching patients:", error)
     throw error
@@ -71,9 +89,9 @@ export async function fetchPatientById(id, serverUrl) {
 }
 
 /**
- * Search for patients using various search parameters
+ * Search for patients using various search parameters with pagination
  */
-export async function searchPatients(searchParams, serverUrl) {
+export async function searchPatients(searchParams, serverUrl, pageSize = 100, pageNumber = 1) {
   try {
     // Construct query string from search parameters
     const queryParams = new URLSearchParams()
@@ -88,8 +106,15 @@ export async function searchPatients(searchParams, serverUrl) {
     if (searchParams.email) queryParams.append("email", searchParams.email)
     if (searchParams.address) queryParams.append("address", searchParams.address)
 
-    // Add _count parameter to limit results
-    queryParams.append("_count", "20")
+    // Calculate offset based on page number and size
+    const offset = (pageNumber - 1) * pageSize
+
+    // Add pagination parameters
+    queryParams.append("_count", pageSize.toString())
+    queryParams.append("_getpagesoffset", offset.toString())
+
+    // Add _sort parameter to sort by last updated date (newest first)
+    queryParams.append("_sort", "-_lastUpdated")
 
     const url = `${serverUrl}/Patient?${queryParams.toString()}`
     console.log(`Searching patients with URL: ${url}`)
@@ -110,6 +135,10 @@ export async function searchPatients(searchParams, serverUrl) {
     return {
       total: data.total || 0,
       patients: data.entry?.map((entry) => entry.resource) || [],
+      links: data.link || [],
+      pageSize,
+      pageNumber,
+      totalPages: Math.ceil((data.total || 0) / pageSize),
     }
   } catch (error) {
     console.error("Error searching patients:", error)
@@ -188,6 +217,31 @@ export async function fetchConditionsForPatient(patientId, serverUrl) {
     return data.entry?.map((entry) => entry.resource) || []
   } catch (error) {
     console.error(`Error fetching conditions for patient ${patientId}:`, error)
+    throw error
+  }
+}
+
+/**
+ * Fetches all conditions from the FHIR server
+ */
+export async function fetchAllConditions(serverUrl, limit = 100) {
+  try {
+    console.log(`Fetching all conditions from ${serverUrl}...`)
+    const response = await fetch(`${serverUrl}/Condition?_count=${limit}`, {
+      method: "GET",
+      headers: {
+        Accept: "application/fhir+json",
+      },
+    })
+
+    if (!response.ok) {
+      throw new Error(`HTTP error ${response.status}: ${response.statusText}`)
+    }
+
+    const data = await response.json()
+    return data.entry?.map((entry) => entry.resource) || []
+  } catch (error) {
+    console.error("Error fetching conditions:", error)
     throw error
   }
 }

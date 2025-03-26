@@ -27,10 +27,6 @@ export default function Home() {
     setSelectedPatientId(null)
   }
 
-  const handleBackToList = () => {
-    setSelectedPatientId(null)
-  }
-
   return (
     <ServerProvider>
       <div className="container mx-auto py-10">
@@ -68,6 +64,7 @@ export default function Home() {
                         initialPatients={searchResults.patients}
                         onPatientSelect={handlePatientSelect}
                         hideSearch={true}
+                        paginationData={searchResults}
                       />
                     )}
                   </div>

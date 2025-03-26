@@ -16,6 +16,7 @@ import { useServer } from "@/contexts/server-context"
 
 const formSchema = z.object({
   givenName: z.string().min(1, "First name is required"),
+  middleName: z.string().optional(),
   familyName: z.string().min(1, "Last name is required"),
   gender: z.enum(["male", "female", "other", "unknown"]),
   birthDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be in YYYY-MM-DD format"),
@@ -55,6 +56,7 @@ export default function CreatePatient({ onSuccess }) {
     resolver: zodResolver(formSchema),
     defaultValues: {
       givenName: "",
+      middleName: "",
       familyName: "",
       gender: "unknown",
       birthDate: "",
@@ -73,6 +75,12 @@ export default function CreatePatient({ onSuccess }) {
     try {
       setStatus({ loading: true, success: false, error: null })
 
+      // Prepare the given names array (first name and middle name if provided)
+      const givenNames = [data.givenName]
+      if (data.middleName) {
+        givenNames.push(data.middleName)
+      }
+
       const patientResource = {
         resourceType: "Patient",
         // Add meta.profile to declare conformance to the required profile
@@ -83,7 +91,7 @@ export default function CreatePatient({ onSuccess }) {
           {
             use: "official",
             family: data.familyName,
-            given: [data.givenName], // Ensure given name is included (min=1)
+            given: givenNames, // Include first name and middle name (if provided)
           },
         ],
         gender: data.gender,
@@ -164,8 +172,7 @@ export default function CreatePatient({ onSuccess }) {
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-            {/* Form fields remain the same */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <FormField
                 control={form.control}
                 name="givenName"
@@ -176,8 +183,23 @@ export default function CreatePatient({ onSuccess }) {
                       <span className="ml-1 text-xs text-muted-foreground">(Required by profile)</span>
                     </FormLabel>
                     <FormControl>
-                      <Input placeholder="John" {...field} />
+                      <Input placeholder="Juan Jason" {...field} />
                     </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="middleName"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Middle Name</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Dela Cruz" {...field} />
+                    </FormControl>
+                    <FormDescription className="text-xs">Will be added as a second given name in FHIR</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -190,7 +212,7 @@ export default function CreatePatient({ onSuccess }) {
                   <FormItem>
                     <FormLabel>Last Name*</FormLabel>
                     <FormControl>
-                      <Input placeholder="Doe" {...field} />
+                      <Input placeholder="Reyes" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

@@ -11,6 +11,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { AlertCircle, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import AgeDistribution from "./age-distribution"
+import ConditionStatistics from "./condition-statistics"
 
 export default function PatientDashboard() {
   const { serverUrl } = useServer()
@@ -23,7 +24,8 @@ export default function PatientDashboard() {
       setLoading(true)
       setError(null)
       const data = await fetchPatients(serverUrl)
-      setPatients(data)
+      // Extract the patients array from the response
+      setPatients(data.patients || [])
     } catch (err) {
       setError(err.message || "Failed to load patient data")
     } finally {
@@ -36,7 +38,6 @@ export default function PatientDashboard() {
     loadPatients()
   }, [serverUrl])
 
-  // Rest of the component remains the same...
   // Process data for gender distribution chart
   const processGenderData = () => {
     const genderCounts = {
@@ -44,6 +45,14 @@ export default function PatientDashboard() {
       female: 0,
       other: 0,
       unknown: 0,
+    }
+
+    if (!Array.isArray(patients)) {
+      console.error("Expected patients to be an array, got:", patients)
+      return Object.entries(genderCounts).map(([name, value]) => ({
+        name: name.charAt(0).toUpperCase() + name.slice(1),
+        value,
+      }))
     }
 
     patients.forEach((patient) => {
@@ -243,6 +252,8 @@ export default function PatientDashboard() {
           </div>
         </CardContent>
       </Card>
+
+      <ConditionStatistics />
 
       <AgeDistribution patients={patients} />
     </div>

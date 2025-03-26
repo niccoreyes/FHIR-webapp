@@ -16,6 +16,15 @@ export default function AgeDistribution({ patients }) {
       Unknown: 0,
     }
 
+    // Ensure patients is an array before using forEach
+    if (!Array.isArray(patients)) {
+      console.error("Expected patients to be an array, got:", patients)
+      return Object.entries(ageGroups).map(([name, value]) => ({
+        name,
+        value,
+      }))
+    }
+
     patients.forEach((patient) => {
       if (!patient.birthDate) {
         ageGroups["Unknown"]++
