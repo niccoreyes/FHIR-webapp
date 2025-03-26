@@ -1,8 +1,12 @@
+# FHIR Viewer Webapp
+
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
-## Getting Started
+---
 
-First, run the development server:
+## Development
+
+To run the development server locally, use one of the following commands:
 
 ```bash
 npm run dev
@@ -14,43 +18,91 @@ pnpm dev
 bun dev
 ```
 
-Alternatively, you can run the application using Docker Compose:
+---
+
+## Docker Setup
+
+For a consistent Dockerized development and production environment, follow these consolidated instructions.
+
+### 1. Clone and Build
+
+**Clone the Repository:**
 
 ```bash
-docker-compose up
-# or
-docker compose up
+git clone https://github.com/niccoreyes/FHIR-webapp
+cd FHIR-webapp
 ```
 
-This command builds the Docker image using the Dockerfile and starts the container on port 3000.
+**Build and Run via Docker Compose:**
+
+To build the Docker image (if not already built) and start the container on port 3000:
+
+- **Interactive Mode:**
+
+  ```bash
+  docker compose up --build
+  ```
+  *(Press CTRL+C to stop the container.)*
+
+- **Detached Mode (Background):**
+
+  ```bash
+  docker compose up -d
+  ```
+
+### 2. Access the Application
+
+After the container is running, open your browser and navigate to:
+
+```
+http://localhost:3000
+```
+
+### 3. Manage the Application
+
+- **Stop the Container and Remove Network:**
+
+  ```bash
+  docker compose down
+  ```
+
+- **View Container Logs:**
+
+  ```bash
+  docker compose logs
+  ```
+
+- **Remove the Built Image (Optional):**
+
+  ```bash
+  docker compose down --rmi all
+  ```
+
+### 4. Alternative: Docker Hub Image
+
+For a quicker setup, you can use the pre-built image from Docker Hub:
 
 ```bash
-docker-compose down
-# or
-docker compose down
+docker pull niccoreyes/fhir-webapp
 ```
 
-This command stops the container and removes it along with the default network configurations (the built image will remain intact).
-
-If you also want to remove the built image, run:
+Then start the container with:
 
 ```bash
-docker-compose down --rmi all
-# or
-docker compose down --rmi all
+docker compose up      # add -d for detached mode
 ```
 
-## Learn More
+---
 
-To learn more about Next.js, take a look at the following resources:
+## Additional Resources
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- **Next.js Documentation:** [Next.js Docs](https://nextjs.org/docs)
+- **Learn Next.js:** [Interactive Tutorial](https://nextjs.org/learn)
+- **Next.js GitHub Repository:** [vercel/next.js](https://github.com/vercel/next.js)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+---
 
-## Deploy on Vercel
+## Deployment
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme).  
+For detailed deployment instructions, refer to the [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying).

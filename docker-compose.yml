@@ -1,6 +1,7 @@
 services:
   app:
-    container_name: FHIR-webapp
+    image: niccoreyes/fhir-webapp  # Use the image from Docker Hub
+    container_name: fhir-webapp
     build: .
     ports:
       - "3000:3000"
