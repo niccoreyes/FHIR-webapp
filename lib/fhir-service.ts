@@ -78,6 +78,9 @@ export async function fetchPatientById(id, serverUrl) {
     })
 
     if (!response.ok) {
+      if (response.status === 404) {
+        throw new Error(`Patient with ID ${id} not found on server ${serverUrl}`)
+      }
       throw new Error(`HTTP error ${response.status}: ${response.statusText}`)
     }
 
@@ -160,6 +163,10 @@ export async function fetchLatestEncounters(patientId, count = 5, serverUrl) {
     })
 
     if (!response.ok) {
+      if (response.status === 404) {
+        console.warn(`No encounters found for patient ${patientId} on server ${serverUrl}`)
+        return []
+      }
       throw new Error(`HTTP error ${response.status}: ${response.statusText}`)
     }
 
@@ -167,7 +174,8 @@ export async function fetchLatestEncounters(patientId, count = 5, serverUrl) {
     return data.entry?.map((entry) => entry.resource) || []
   } catch (error) {
     console.error(`Error fetching encounters for patient ${patientId}:`, error)
-    throw error
+    // Return empty array instead of throwing for non-critical errors
+    return []
   }
 }
 
@@ -210,6 +218,10 @@ export async function fetchConditionsForPatient(patientId, serverUrl) {
     })
 
     if (!response.ok) {
+      if (response.status === 404) {
+        console.warn(`No conditions found for patient ${patientId} on server ${serverUrl}`)
+        return []
+      }
       throw new Error(`HTTP error ${response.status}: ${response.statusText}`)
     }
 
@@ -217,7 +229,8 @@ export async function fetchConditionsForPatient(patientId, serverUrl) {
     return data.entry?.map((entry) => entry.resource) || []
   } catch (error) {
     console.error(`Error fetching conditions for patient ${patientId}:`, error)
-    throw error
+    // Return empty array instead of throwing for non-critical errors
+    return []
   }
 }
 

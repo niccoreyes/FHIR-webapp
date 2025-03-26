@@ -7,7 +7,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
-import { AlertCircle, ArrowLeft, Calendar, Phone, Mail, Home, User } from "lucide-react"
+import { AlertCircle, ArrowLeft, Calendar, Phone, Mail, Home, User, Server } from "lucide-react"
 import { fetchPatientById, fetchLatestEncounters, fetchConditionsForPatient } from "@/lib/fhir-service"
 import { useServer } from "@/contexts/server-context"
 import EncounterList from "./encounter-list"
@@ -20,11 +20,13 @@ export default function PatientDetail({ patientId, onBack }) {
   const [conditions, setConditions] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [notFound, setNotFound] = useState(false)
 
   const loadPatientData = async () => {
     try {
       setLoading(true)
       setError(null)
+      setNotFound(false)
 
       // Fetch patient details
       const patientData = await fetchPatientById(patientId, serverUrl)
@@ -38,7 +40,14 @@ export default function PatientDetail({ patientId, onBack }) {
       const conditionData = await fetchConditionsForPatient(patientId, serverUrl)
       setConditions(conditionData)
     } catch (err) {
-      setError(err.message || "Failed to load patient data")
+      console.error("Error loading patient data:", err)
+
+      // Check if this is a "not found" error
+      if (err.message && err.message.includes("not found")) {
+        setNotFound(true)
+      } else {
+        setError(err.message || "Failed to load patient data")
+      }
     } finally {
       setLoading(false)
     }
@@ -68,11 +77,50 @@ export default function PatientDetail({ patientId, onBack }) {
     )
   }
 
+  if (notFound) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Patient Not Found</CardTitle>
+          <CardDescription>
+            <div className="flex items-center mt-1 text-sm">
+              <Server className="h-3 w-3 mr-1" />
+              <span>Current server: {serverUrl}</span>
+            </div>
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Alert className="bg-amber-50 text-amber-800 border-amber-200">
+            <AlertCircle className="h-4 w-4 text-amber-600" />
+            <AlertTitle>Not Found</AlertTitle>
+            <AlertDescription>
+              <p>Patient with ID {patientId} could not be found on the current server.</p>
+              <p className="mt-2">
+                This patient may exist on a different FHIR server. Try switching servers or returning to the patient
+                list.
+              </p>
+            </AlertDescription>
+          </Alert>
+          <Button onClick={onBack} className="mt-4">
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back to Patient List
+          </Button>
+        </CardContent>
+      </Card>
+    )
+  }
+
   if (error) {
     return (
       <Card>
         <CardHeader>
           <CardTitle>Error Loading Patient</CardTitle>
+          <CardDescription>
+            <div className="flex items-center mt-1 text-sm">
+              <Server className="h-3 w-3 mr-1" />
+              <span>Current server: {serverUrl}</span>
+            </div>
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <Alert className="bg-red-50 text-red-800 border-red-200">
@@ -80,10 +128,16 @@ export default function PatientDetail({ patientId, onBack }) {
             <AlertTitle>Error</AlertTitle>
             <AlertDescription>{error}</AlertDescription>
           </Alert>
-          <Button onClick={onBack} className="mt-4">
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Search
-          </Button>
+          <div className="flex gap-4 mt-4">
+            <Button onClick={onBack}>
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back to Patient List
+            </Button>
+            <Button variant="outline" onClick={loadPatientData}>
+              <AlertCircle className="mr-2 h-4 w-4" />
+              Retry
+            </Button>
+          </div>
         </CardContent>
       </Card>
     )
@@ -143,6 +197,10 @@ export default function PatientDetail({ patientId, onBack }) {
               {patient.birthDate && (
                 <span className="ml-2">• Born {new Date(patient.birthDate).toLocaleDateString()}</span>
               )}
+              <div className="flex items-center mt-1 text-sm">
+                <Server className="h-3 w-3 mr-1" />
+                <span>Server: {serverUrl}</span>
+              </div>
             </CardDescription>
           </div>
           <Button variant="outline" onClick={onBack}>
