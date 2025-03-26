@@ -82,12 +82,11 @@ export default function PatientDetail({ patientId, onBack }) {
       <Card>
         <CardHeader>
           <CardTitle>Patient Not Found</CardTitle>
-          <CardDescription>
-            <div className="flex items-center mt-1 text-sm">
-              <Server className="h-3 w-3 mr-1" />
-              <span>Current server: {serverUrl}</span>
-            </div>
-          </CardDescription>
+          <CardDescription>Patient ID: {patientId}</CardDescription>
+          <div className="flex items-center mt-1 text-xs text-muted-foreground">
+            <Server className="h-3 w-3 mr-1" />
+            <span>Current server: {serverUrl}</span>
+          </div>
         </CardHeader>
         <CardContent>
           <Alert className="bg-amber-50 text-amber-800 border-amber-200">
@@ -115,12 +114,11 @@ export default function PatientDetail({ patientId, onBack }) {
       <Card>
         <CardHeader>
           <CardTitle>Error Loading Patient</CardTitle>
-          <CardDescription>
-            <div className="flex items-center mt-1 text-sm">
-              <Server className="h-3 w-3 mr-1" />
-              <span>Current server: {serverUrl}</span>
-            </div>
-          </CardDescription>
+          <CardDescription>An error occurred while loading patient data</CardDescription>
+          <div className="flex items-center mt-1 text-xs text-muted-foreground">
+            <Server className="h-3 w-3 mr-1" />
+            <span>Current server: {serverUrl}</span>
+          </div>
         </CardHeader>
         <CardContent>
           <Alert className="bg-red-50 text-red-800 border-red-200">
@@ -197,11 +195,11 @@ export default function PatientDetail({ patientId, onBack }) {
               {patient.birthDate && (
                 <span className="ml-2">• Born {new Date(patient.birthDate).toLocaleDateString()}</span>
               )}
-              <div className="flex items-center mt-1 text-sm">
-                <Server className="h-3 w-3 mr-1" />
-                <span>Server: {serverUrl}</span>
-              </div>
             </CardDescription>
+            <div className="flex items-center mt-1 text-xs text-muted-foreground">
+              <Server className="h-3 w-3 mr-1" />
+              <span>Server: {serverUrl}</span>
+            </div>
           </div>
           <Button variant="outline" onClick={onBack}>
             <ArrowLeft className="mr-2 h-4 w-4" />
