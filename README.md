@@ -14,11 +14,31 @@ pnpm dev
 bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Alternatively, you can run the application using Docker Compose:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+docker-compose up
+# or
+docker compose up
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+This command builds the Docker image using the Dockerfile and starts the container on port 3000.
+
+```bash
+docker-compose down
+# or
+docker compose down
+```
+
+This command stops the container and removes it along with the default network configurations (the built image will remain intact).
+
+If you also want to remove the built image, run:
+
+```bash
+docker-compose down --rmi all
+# or
+docker compose down --rmi all
+```
 
 ## Learn More
 
