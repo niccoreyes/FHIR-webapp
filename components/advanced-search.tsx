@@ -168,7 +168,7 @@ export default function AdvancedSearch({ onSearchResults }) {
                   <FormItem>
                     <FormLabel>Patient ID</FormLabel>
                     <FormControl>
-                      <Input placeholder="MRN12345" {...field} />
+                      <Input placeholder="000000" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

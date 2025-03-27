@@ -15,11 +15,21 @@ import {
   ChevronsLeft,
   ChevronsRight,
   Server,
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown,
+  AlertCircle,
 } from "lucide-react"
-import { fetchPatients, searchPatients } from "@/lib/fhir-service"
+import { fetchPatients, searchPatients, fetchPatientCount } from "@/lib/fhir-service"
 import { useServer } from "@/contexts/server-context"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+
+// Define sort field types
+type SortField = "name" | "gender" | "birthDate" | "lastUpdated" | "id"
+type SortDirection = "asc" | "desc"
 
 export default function PatientList({
   initialPatients = null,
@@ -32,6 +42,7 @@ export default function PatientList({
   const [loading, setLoading] = useState(!initialPatients)
   const [error, setError] = useState(null)
   const [searchTerm, setSearchTerm] = useState("")
+  const [loadingCount, setLoadingCount] = useState(false)
 
   // Pagination state
   const [pageSize, setPageSize] = useState(25)
@@ -39,6 +50,12 @@ export default function PatientList({
   const [totalPages, setTotalPages] = useState(1)
   const [totalPatients, setTotalPatients] = useState(0)
   const [searchParams, setSearchParams] = useState(null)
+  const [countVerified, setCountVerified] = useState(false)
+
+  // Sorting state
+  const [sortField, setSortField] = useState<SortField>("lastUpdated")
+  const [sortDirection, setSortDirection] = useState<SortDirection>("desc")
+  const [jumpToPage, setJumpToPage] = useState("")
 
   // Initialize from paginationData if provided (for search results)
   useEffect(() => {
@@ -53,7 +70,68 @@ export default function PatientList({
     }
   }, [paginationData])
 
-  const loadPatients = async (page = currentPage, size = pageSize) => {
+  // Handle sorting
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      // Toggle direction if clicking the same field
+      setSortDirection(sortDirection === "asc" ? "desc" : "asc")
+    } else {
+      // Set new field and default to ascending
+      setSortField(field)
+      setSortDirection("asc")
+    }
+
+    // Reset to first page when sorting changes
+    if (!initialPatients) {
+      loadPatients(1, pageSize, field, sortDirection === "asc" ? "desc" : "asc")
+    }
+  }
+
+  // Get sort parameter for FHIR API
+  const getSortParam = (field: SortField, direction: SortDirection): string => {
+    // Map our sort fields to FHIR sort parameters
+    const fieldMap = {
+      name: "family",
+      gender: "gender",
+      birthDate: "birthdate",
+      lastUpdated: "_lastUpdated",
+      id: "_id",
+    }
+
+    const prefix = direction === "desc" ? "-" : ""
+    return `${prefix}${fieldMap[field]}`
+  }
+
+  // Verify the total count if it seems suspicious (0 but we have patients)
+  const verifyTotalCount = async () => {
+    if (countVerified || totalPatients > 0) return
+
+    try {
+      setLoadingCount(true)
+      console.log("Verifying total patient count...")
+      const count = await fetchPatientCount(serverUrl)
+
+      if (count > 0) {
+        console.log(`Verified count: ${count}`)
+        setTotalPatients(count)
+        setTotalPages(Math.max(1, Math.ceil(count / pageSize)))
+        setCountVerified(true)
+      } else if (count === 0 && patients.length > 0) {
+        // If we still get 0 but have patients, use the length as a minimum
+        const estimatedTotal = Math.max(patients.length, (currentPage - 1) * pageSize + patients.length)
+        console.log(`Using estimated count: ${estimatedTotal}`)
+        setTotalPatients(estimatedTotal)
+        setTotalPages(Math.max(1, Math.ceil(estimatedTotal / pageSize)))
+        setCountVerified(true)
+      }
+    } catch (err) {
+      console.error("Error verifying count:", err)
+    } finally {
+      setLoadingCount(false)
+    }
+  }
+
+  const loadPatients = async (page = currentPage, size = pageSize, field = sortField, direction = sortDirection) => {
     if (initialPatients) {
       setPatients(initialPatients)
       return
@@ -62,15 +140,30 @@ export default function PatientList({
     try {
       setLoading(true)
       setError(null)
+      setCountVerified(false)
 
-      console.log(`Loading patients from server: ${serverUrl}, page: ${page}, size: ${size}`)
-      const result = await fetchPatients(serverUrl, size, page)
+      const sortParam = getSortParam(field, direction)
+      console.log(`Loading patients from server: ${serverUrl}, page: ${page}, size: ${size}, sort: ${sortParam}`)
+      const result = await fetchPatients(serverUrl, size, page, sortParam)
+
+      // Add debugging logs
+      console.log(`Server returned: ${result.patients.length} patients`)
+      console.log(`Total patients on server: ${result.total}`)
+      console.log(`Total pages calculated: ${result.totalPages}`)
 
       setPatients(result.patients)
       setTotalPatients(result.total)
       setTotalPages(result.totalPages)
       setCurrentPage(page)
       setPageSize(size)
+
+      // If we got patients but total is 0, something is wrong
+      if (result.patients.length > 0 && result.total === 0) {
+        console.warn("Server returned patients but total is 0. Will verify count.")
+        // We'll verify the count after rendering
+      } else {
+        setCountVerified(true)
+      }
     } catch (err) {
       setError(err.message || "Failed to load patients")
     } finally {
@@ -78,22 +171,37 @@ export default function PatientList({
     }
   }
 
-  // Load search results for a different page
-  const loadSearchPage = async (page = currentPage, size = pageSize) => {
+  // Similarly, update loadSearchPage:
+  const loadSearchPage = async (page = currentPage, size = pageSize, field = sortField, direction = sortDirection) => {
     if (!searchParams) return
 
     try {
       setLoading(true)
       setError(null)
+      setCountVerified(false)
 
-      console.log(`Loading search results from server: ${serverUrl}, page: ${page}, size: ${size}`)
-      const result = await searchPatients(searchParams, serverUrl, size, page)
+      const sortParam = getSortParam(field, direction)
+      console.log(`Loading search results from server: ${serverUrl}, page: ${page}, size: ${size}, sort: ${sortParam}`)
+      const result = await searchPatients(searchParams, serverUrl, size, page, sortParam)
+
+      // Add debugging logs
+      console.log(`Server returned: ${result.patients.length} search results`)
+      console.log(`Total matching patients on server: ${result.total}`)
+      console.log(`Total pages calculated: ${result.totalPages}`)
 
       setPatients(result.patients)
       setTotalPatients(result.total)
       setTotalPages(result.totalPages)
       setCurrentPage(page)
       setPageSize(size)
+
+      // If we got patients but total is 0, something is wrong
+      if (result.patients.length > 0 && result.total === 0) {
+        console.warn("Server returned patients but total is 0. Will verify count.")
+        // We'll verify the count after rendering
+      } else {
+        setCountVerified(true)
+      }
     } catch (err) {
       setError(err.message || "Failed to load search results")
     } finally {
@@ -105,25 +213,51 @@ export default function PatientList({
   useEffect(() => {
     if (!initialPatients) {
       // Reset to first page when server changes
-      loadPatients(1, pageSize)
+      loadPatients(1, pageSize, sortField, sortDirection)
     }
   }, [initialPatients, serverUrl])
 
   useEffect(() => {
     if (initialPatients) {
       setPatients(initialPatients)
+
+      // If paginationData is provided, use its total count
+      if (paginationData) {
+        setTotalPatients(paginationData.total || 0)
+        setTotalPages(paginationData.totalPages || 1)
+      } else {
+        // If no paginationData, use the length of initialPatients as a fallback
+        // Note: This is only accurate if initialPatients contains ALL patients
+        setTotalPatients(initialPatients.length)
+        setTotalPages(Math.ceil(initialPatients.length / pageSize))
+      }
     }
-  }, [initialPatients])
+  }, [initialPatients, paginationData, pageSize])
+
+  // Verify total count if needed
+  useEffect(() => {
+    // If we have patients but total is 0, verify the count
+    if (!loading && !countVerified && patients.length > 0 && totalPatients === 0) {
+      verifyTotalCount()
+    }
+  }, [loading, countVerified, patients, totalPatients])
 
   // Handle page size change
   const handlePageSizeChange = (newSize) => {
     const size = Number.parseInt(newSize)
+
+    // Calculate the first record index of the current page
+    const firstRecordIndex = (currentPage - 1) * pageSize + 1
+
+    // Calculate which page this record would be on with the new page size
+    const newPage = Math.max(1, Math.ceil(firstRecordIndex / size))
+
     setPageSize(size)
 
     if (paginationData && searchParams) {
-      loadSearchPage(1, size) // Reset to first page when changing page size for search results
+      loadSearchPage(newPage, size, sortField, sortDirection)
     } else {
-      loadPatients(1, size) // Reset to first page when changing page size
+      loadPatients(newPage, size, sortField, sortDirection)
     }
   }
 
@@ -132,9 +266,18 @@ export default function PatientList({
     if (page < 1 || page > totalPages || page === currentPage) return
 
     if (paginationData && searchParams) {
-      loadSearchPage(page, pageSize)
+      loadSearchPage(page, pageSize, sortField, sortDirection)
     } else {
-      loadPatients(page, pageSize)
+      loadPatients(page, pageSize, sortField, sortDirection)
+    }
+  }
+
+  // Handle jump to page
+  const handleJumpToPage = () => {
+    const page = Number.parseInt(jumpToPage)
+    if (!isNaN(page) && page >= 1 && page <= totalPages) {
+      goToPage(page)
+      setJumpToPage("")
     }
   }
 
@@ -159,7 +302,7 @@ export default function PatientList({
   }
 
   const filteredPatients = useMemo(() => {
-    if (!patients) return []
+    if (!patients || !Array.isArray(patients)) return []
 
     return patients.filter((patient) => {
       if (!searchTerm) return true
@@ -219,6 +362,21 @@ export default function PatientList({
     return pages
   }
 
+  // Render sort icon based on current sort state
+  const renderSortIcon = (field: SortField) => {
+    if (sortField !== field) {
+      return <ArrowUpDown className="ml-1 h-4 w-4 text-muted-foreground" />
+    }
+
+    return sortDirection === "asc" ? <ArrowUp className="ml-1 h-4 w-4" /> : <ArrowDown className="ml-1 h-4 w-4" />
+  }
+
+  // Determine if we should show patients
+  const shouldShowPatients = !loading && filteredPatients.length > 0
+
+  // Determine if we should show "No patients found" message
+  const shouldShowNoPatients = !loading && filteredPatients.length === 0 && !loadingCount
+
   return (
     <Card>
       <CardHeader>
@@ -229,6 +387,17 @@ export default function PatientList({
             <div className="flex items-center mt-1 text-sm text-muted-foreground">
               <Server className="h-3 w-3 mr-1" />
               <span>Server: {serverUrl}</span>
+              {totalPatients > 0 && (
+                <span className="ml-2 px-2 py-0.5 bg-primary/10 text-primary rounded-full text-xs">
+                  {totalPatients} total patients
+                </span>
+              )}
+              {loadingCount && (
+                <span className="ml-2 text-xs text-muted-foreground italic flex items-center">
+                  <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
+                  Verifying count...
+                </span>
+              )}
             </div>
           </div>
 
@@ -252,10 +421,10 @@ export default function PatientList({
               <Button
                 variant="outline"
                 size="icon"
-                onClick={() => loadPatients(currentPage, pageSize)}
-                disabled={loading}
+                onClick={() => loadPatients(currentPage, pageSize, sortField, sortDirection)}
+                disabled={loading || loadingCount}
               >
-                <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+                <RefreshCw className={`h-4 w-4 ${loading || loadingCount ? "animate-spin" : ""}`} />
               </Button>
             )}
           </div>
@@ -283,8 +452,8 @@ export default function PatientList({
                 variant="outline"
                 onClick={() =>
                   paginationData && searchParams
-                    ? loadSearchPage(currentPage, pageSize)
-                    : loadPatients(currentPage, pageSize)
+                    ? loadSearchPage(currentPage, pageSize, sortField, sortDirection)
+                    : loadPatients(currentPage, pageSize, sortField, sortDirection)
                 }
               >
                 <RefreshCw className="h-3 w-3 mr-2" />
@@ -294,118 +463,183 @@ export default function PatientList({
           </div>
         ) : loading ? (
           <div className="text-center py-4">Loading patients...</div>
-        ) : filteredPatients.length === 0 ? (
+        ) : patients.length > 0 && totalPatients === 0 && !countVerified ? (
+          <Alert className="mb-4 bg-amber-50 border-amber-200">
+            <AlertCircle className="h-4 w-4 text-amber-500" />
+            <AlertDescription className="text-amber-700">Verifying patient count data from server...</AlertDescription>
+          </Alert>
+        ) : shouldShowNoPatients ? (
           <div className="text-center py-4">No patients found</div>
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>ID</TableHead>
-                <TableHead>Name</TableHead>
-                <TableHead>Gender</TableHead>
-                <TableHead>Birth Date</TableHead>
-                <TableHead>Last Updated</TableHead>
-                {onPatientSelect && <TableHead className="w-[100px]">Actions</TableHead>}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredPatients.map((patient) => (
-                <TableRow key={patient.id}>
-                  <TableCell className="font-medium">{patient.id}</TableCell>
-                  <TableCell>{formatPatientName(patient)}</TableCell>
-                  <TableCell>{patient.gender || "Unknown"}</TableCell>
-                  <TableCell>{patient.birthDate || "Unknown"}</TableCell>
-                  <TableCell>
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <div className="flex items-center">
-                            <Clock className="h-3 w-3 mr-1 text-muted-foreground" />
-                            <span>
-                              {patient.meta?.lastUpdated
-                                ? new Date(patient.meta.lastUpdated).toLocaleDateString()
-                                : "Unknown"}
-                            </span>
-                          </div>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          {patient.meta?.lastUpdated
-                            ? new Date(patient.meta.lastUpdated).toLocaleString()
-                            : "Unknown date"}
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  </TableCell>
-                  {onPatientSelect && (
-                    <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => onPatientSelect(patient.id)}
-                        className="h-8 w-8 p-0"
-                      >
-                        <Eye className="h-4 w-4" />
-                      </Button>
-                    </TableCell>
-                  )}
+        ) : shouldShowPatients ? (
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="cursor-pointer hover:bg-muted/50" onClick={() => handleSort("id")}>
+                    <div className="flex items-center">ID {renderSortIcon("id")}</div>
+                  </TableHead>
+                  <TableHead className="cursor-pointer hover:bg-muted/50" onClick={() => handleSort("name")}>
+                    <div className="flex items-center">Name {renderSortIcon("name")}</div>
+                  </TableHead>
+                  <TableHead className="cursor-pointer hover:bg-muted/50" onClick={() => handleSort("gender")}>
+                    <div className="flex items-center">Gender {renderSortIcon("gender")}</div>
+                  </TableHead>
+                  <TableHead className="cursor-pointer hover:bg-muted/50" onClick={() => handleSort("birthDate")}>
+                    <div className="flex items-center">Birth Date {renderSortIcon("birthDate")}</div>
+                  </TableHead>
+                  <TableHead className="cursor-pointer hover:bg-muted/50" onClick={() => handleSort("lastUpdated")}>
+                    <div className="flex items-center">Last Updated{renderSortIcon("lastUpdated")}</div>
+                  </TableHead>
+                  {onPatientSelect && <TableHead className="w-[100px]">Actions</TableHead>}
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        )}
+              </TableHeader>
+              <TableBody>
+                {filteredPatients.map((patient) => (
+                  <TableRow key={patient.id}>
+                    <TableCell className="font-medium">{patient.id}</TableCell>
+                    <TableCell>{formatPatientName(patient)}</TableCell>
+                    <TableCell>{patient.gender || "Unknown"}</TableCell>
+                    <TableCell>{patient.birthDate || "Unknown"}</TableCell>
+                    <TableCell>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div className="flex items-center">
+                              <Clock className="h-3 w-3 mr-1 text-muted-foreground" />
+                              <span>
+                                {patient.meta?.lastUpdated
+                                  ? new Date(patient.meta.lastUpdated).toLocaleDateString()
+                                  : "Unknown"}
+                              </span>
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            {patient.meta?.lastUpdated
+                              ? new Date(patient.meta.lastUpdated).toLocaleString()
+                              : "Unknown date"}
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </TableCell>
+                    {onPatientSelect && (
+                      <TableCell>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => onPatientSelect(patient.id)}
+                          className="h-8 w-8 p-0"
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
+                    )}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        ) : null}
       </CardContent>
 
-      {!loading && totalPages > 1 && (
+      {!loading && (
         <CardFooter className="flex flex-col md:flex-row justify-between items-center gap-4">
           <div className="text-sm text-muted-foreground">
-            Showing {(currentPage - 1) * pageSize + 1}-{Math.min(currentPage * pageSize, totalPatients)} of{" "}
-            {totalPatients} patients
+            {totalPatients > 0 ? (
+              <>
+                Showing {Math.min((currentPage - 1) * pageSize + 1, totalPatients)}-
+                {Math.min(currentPage * pageSize, totalPatients)} of {totalPatients} patients
+              </>
+            ) : patients.length > 0 ? (
+              <>
+                Showing {patients.length} patients
+                {loadingCount && " (verifying total count...)"}
+              </>
+            ) : (
+              "No patients to display"
+            )}
           </div>
 
-          <div className="flex items-center space-x-2">
-            <Button variant="outline" size="icon" onClick={() => goToPage(1)} disabled={currentPage === 1}>
-              <ChevronsLeft className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => goToPage(currentPage - 1)}
-              disabled={currentPage === 1}
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-
-            <div className="flex items-center space-x-1">
-              {getPageNumbers().map((page) => (
-                <Button
-                  key={page}
-                  variant={currentPage === page ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => goToPage(page)}
-                  className="w-8 h-8 p-0"
-                >
-                  {page}
+          {totalPages > 1 && (
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              <div className="flex items-center space-x-2">
+                <Button variant="outline" size="icon" onClick={() => goToPage(1)} disabled={currentPage === 1}>
+                  <ChevronsLeft className="h-4 w-4" />
                 </Button>
-              ))}
-            </div>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => goToPage(currentPage - 1)}
+                  disabled={currentPage === 1}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
 
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => goToPage(currentPage + 1)}
-              disabled={currentPage === totalPages}
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => goToPage(totalPages)}
-              disabled={currentPage === totalPages}
-            >
-              <ChevronsRight className="h-4 w-4" />
-            </Button>
-          </div>
+                <div className="hidden md:flex items-center space-x-1">
+                  {getPageNumbers().map((page) => (
+                    <Button
+                      key={page}
+                      variant={currentPage === page ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => goToPage(page)}
+                      className="w-8 h-8 p-0"
+                    >
+                      {page}
+                    </Button>
+                  ))}
+                </div>
+
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => goToPage(currentPage + 1)}
+                  disabled={currentPage === totalPages}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => goToPage(totalPages)}
+                  disabled={currentPage === totalPages}
+                >
+                  <ChevronsRight className="h-4 w-4" />
+                </Button>
+              </div>
+
+              {/* Jump to page popover */}
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm" className="h-8">
+                    Page {currentPage} of {totalPages}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-50 p-0" align="center">
+                  <div className="p-4 flex flex-col gap-2">
+                    <div className="text-sm text-center text-muted-foreground">Jump to page (1-{totalPages})</div>
+                    <div className="flex gap-2">
+                      <Input
+                        type="number"
+                        min="1"
+                        max={totalPages}
+                        placeholder="Page #"
+                        value={jumpToPage}
+                        onChange={(e) => setJumpToPage(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            handleJumpToPage()
+                          }
+                        }}
+                        className="w-24"
+                      />
+                      <Button size="sm" onClick={handleJumpToPage}>
+                        Go
+                      </Button>
+                    </div>
+                  </div>
+                </PopoverContent>
+              </Popover>
+            </div>
+          )}
         </CardFooter>
       )}
     </Card>
