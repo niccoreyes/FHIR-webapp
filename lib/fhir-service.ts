@@ -1,4 +1,4 @@
-export async function fetchPatientCount(serverUrl) {
+export async function fetchPatientCount(serverUrl: string): Promise<number> {
   try {
     console.log(`Fetching patient count from ${serverUrl}...`)
     // Use _summary=count to only get the count, not the actual resources
@@ -19,7 +19,7 @@ export async function fetchPatientCount(serverUrl) {
     console.log("Patient count response:", data)
 
     // Extract the total count
-    const total = typeof data.total === "number" ? data.total : 0
+    const total: number = typeof data.total === "number" ? data.total : 0
     console.log(`Total patients on server (from count endpoint): ${total}`)
 
     return total
@@ -34,25 +34,30 @@ export async function fetchPatientCount(serverUrl) {
  * Fetches a list of patients from the FHIR server with pagination
  * Returns patients sorted by last updated date (newest first)
  */
-export async function fetchPatients(serverUrl, pageSize = 100, pageNumber = 1, sortParam = "-_lastUpdated") {
+export async function fetchPatients(
+  serverUrl: string,
+  pageSize: number,
+  pageNumber: number = 1,
+  sortParam: string = "-_lastUpdated"
+): Promise<{ patients: any[]; total: number; links: any[]; pageSize: number; pageNumber: number; totalPages: number }> {
   try {
     console.log(`Fetching patients from ${serverUrl}...`)
-    // Calculate offset based on page number and size
-    const offset = (pageNumber - 1) * pageSize
 
-    // Use _sort parameter for sorting
-    // Use _count to limit results per page
-    // Use _getpagesoffset for pagination
-    // Add _total=accurate to request an accurate count
-    const response = await fetch(
+    let response;
+    if (!pageSize) {
+      pageSize = await fetchPatientCount(serverUrl);
+      console.log(`No pageSize provided. Using total count: ${pageSize}`);
+    }
+    const offset = (pageNumber - 1) * pageSize;
+    response = await fetch(
       `${serverUrl}/Patient?_sort=${sortParam}&_count=${pageSize}&_getpagesoffset=${offset}&_total=accurate`,
       {
         method: "GET",
         headers: {
           Accept: "application/fhir+json",
         },
-      },
-    )
+      }
+    );
 
     if (!response.ok) {
       throw new Error(`HTTP error ${response.status}: ${response.statusText}`)
@@ -68,10 +73,10 @@ export async function fetchPatients(serverUrl, pageSize = 100, pageNumber = 1, s
     })
 
     // Return both the patient resources and pagination info
-    const patients = data.entry?.map((entry) => entry.resource) || []
+    const patients = data.entry?.map((entry: any) => entry.resource) || []
 
     // Try to get the total from the response
-    let total = typeof data.total === "number" ? data.total : 0
+    let total: number = typeof data.total === "number" ? data.total : 0
 
     // If total is 0 but we have patients, something is wrong with the server's total count
     if (total === 0 && patients.length > 0) {
@@ -115,7 +120,7 @@ export async function fetchPatients(serverUrl, pageSize = 100, pageNumber = 1, s
 /**
  * Creates a new patient in the FHIR server
  */
-export async function createPatient(patientResource, serverUrl) {
+export async function createPatient(patientResource: any, serverUrl: string): Promise<any> {
   try {
     console.log(`Creating patient on ${serverUrl}...`)
     const response = await fetch(`${serverUrl}/Patient`, {
@@ -141,7 +146,7 @@ export async function createPatient(patientResource, serverUrl) {
 /**
  * Fetches a specific patient by ID
  */
-export async function fetchPatientById(id, serverUrl) {
+export async function fetchPatientById(id: string, serverUrl: string): Promise<any> {
   try {
     console.log(`Fetching patient ${id} from ${serverUrl}...`)
     const response = await fetch(`${serverUrl}/Patient/${id}`, {
@@ -169,12 +174,12 @@ export async function fetchPatientById(id, serverUrl) {
  * Search for patients using various search parameters with pagination
  */
 export async function searchPatients(
-  searchParams,
-  serverUrl,
-  pageSize = 100,
-  pageNumber = 1,
-  sortParam = "-_lastUpdated",
-) {
+  searchParams: any,
+  serverUrl: string,
+  pageSize: number = 100,
+  pageNumber: number = 1,
+  sortParam: string = "-_lastUpdated"
+): Promise<{ patients: any[]; total: number; links: any[]; pageSize: number; pageNumber: number; totalPages: number; searchParams: any }> {
   try {
     // Construct query string from search parameters
     const queryParams = new URLSearchParams()
@@ -225,10 +230,10 @@ export async function searchPatients(
       link: data.link,
     })
 
-    const patients = data.entry?.map((entry) => entry.resource) || []
+    const patients = data.entry?.map((entry: any) => entry.resource) || []
 
     // Try to get the total from the response
-    let total = typeof data.total === "number" ? data.total : 0
+    let total: number = typeof data.total === "number" ? data.total : 0
 
     // If total is 0 but we have patients, something is wrong with the server's total count
     if (total === 0 && patients.length > 0) {
@@ -267,7 +272,7 @@ export async function searchPatients(
 /**
  * Fetches the latest encounters for a patient
  */
-export async function fetchLatestEncounters(patientId, count = 5, serverUrl) {
+export async function fetchLatestEncounters(patientId: string, count: number = 5, serverUrl: string): Promise<any[]> {
   try {
     console.log(`Fetching encounters for patient ${patientId} from ${serverUrl}...`)
     const response = await fetch(`${serverUrl}/Encounter?patient=${patientId}&_sort=-date&_count=${count}`, {
@@ -286,7 +291,7 @@ export async function fetchLatestEncounters(patientId, count = 5, serverUrl) {
     }
 
     const data = await response.json()
-    return data.entry?.map((entry) => entry.resource) || []
+    return data.entry?.map((entry: any) => entry.resource) || []
   } catch (error) {
     console.error(`Error fetching encounters for patient ${patientId}:`, error)
     // Return empty array instead of throwing for non-critical errors
@@ -297,7 +302,7 @@ export async function fetchLatestEncounters(patientId, count = 5, serverUrl) {
 /**
  * Fetches conditions associated with an encounter
  */
-export async function fetchConditionsForEncounter(encounterId, serverUrl) {
+export async function fetchConditionsForEncounter(encounterId: string, serverUrl: string): Promise<any[]> {
   try {
     console.log(`Fetching conditions for encounter ${encounterId} from ${serverUrl}...`)
     const response = await fetch(`${serverUrl}/Condition?encounter=${encounterId}`, {
@@ -312,7 +317,7 @@ export async function fetchConditionsForEncounter(encounterId, serverUrl) {
     }
 
     const data = await response.json()
-    return data.entry?.map((entry) => entry.resource) || []
+    return data.entry?.map((entry: any) => entry.resource) || []
   } catch (error) {
     console.error(`Error fetching conditions for encounter ${encounterId}:`, error)
     throw error
@@ -322,7 +327,7 @@ export async function fetchConditionsForEncounter(encounterId, serverUrl) {
 /**
  * Fetches conditions for a patient
  */
-export async function fetchConditionsForPatient(patientId, serverUrl) {
+export async function fetchConditionsForPatient(patientId: string, serverUrl: string): Promise<any[]> {
   try {
     console.log(`Fetching conditions for patient ${patientId} from ${serverUrl}...`)
     const response = await fetch(`${serverUrl}/Condition?patient=${patientId}&_sort=-recorded-date`, {
@@ -341,7 +346,7 @@ export async function fetchConditionsForPatient(patientId, serverUrl) {
     }
 
     const data = await response.json()
-    return data.entry?.map((entry) => entry.resource) || []
+    return data.entry?.map((entry: any) => entry.resource) || []
   } catch (error) {
     console.error(`Error fetching conditions for patient ${patientId}:`, error)
     // Return empty array instead of throwing for non-critical errors
@@ -350,24 +355,39 @@ export async function fetchConditionsForPatient(patientId, serverUrl) {
 }
 
 /**
- * Fetches all conditions from the FHIR server
+ * Fetches all conditions from the FHIR server.
+ * If limit is not provided, fetch the total count and use it as the limit.
  */
-export async function fetchAllConditions(serverUrl, limit = 100) {
+export async function fetchAllConditions(serverUrl: string, limit?: number): Promise<any[]> {
   try {
     console.log(`Fetching all conditions from ${serverUrl}...`)
+    if (limit === undefined) {
+      const countResponse = await fetch(`${serverUrl}/Condition?_summary=count`, {
+        method: "GET",
+        headers: {
+          Accept: "application/fhir+json",
+        },
+      });
+      if (!countResponse.ok) {
+        throw new Error(`HTTP error ${countResponse.status}: ${countResponse.statusText}`);
+      }
+      const countData = await countResponse.json();
+      limit = typeof countData.total === "number" ? countData.total : 0;
+      console.log(`No limit provided. Using total count: ${limit}`);
+    }
     const response = await fetch(`${serverUrl}/Condition?_count=${limit}`, {
       method: "GET",
       headers: {
         Accept: "application/fhir+json",
       },
-    })
+    });
 
     if (!response.ok) {
       throw new Error(`HTTP error ${response.status}: ${response.statusText}`)
     }
 
     const data = await response.json()
-    return data.entry?.map((entry) => entry.resource) || []
+    return data.entry?.map((entry: any) => entry.resource) || []
   } catch (error) {
     console.error("Error fetching conditions:", error)
     throw error
@@ -377,10 +397,10 @@ export async function fetchAllConditions(serverUrl, limit = 100) {
 /**
  * Fetches a list of organizations from the FHIR server
  */
-export async function fetchOrganizations(serverUrl) {
+export async function fetchOrganizations(serverUrl: string): Promise<any[]> {
   try {
     console.log(`Fetching organizations from ${serverUrl}...`)
-    const response = await fetch(`${serverUrl}/Organization?_count=100`, {
+    const response = await fetch(`${serverUrl}/Organization`, {
       method: "GET",
       headers: {
         Accept: "application/fhir+json",
@@ -392,10 +412,9 @@ export async function fetchOrganizations(serverUrl) {
     }
 
     const data = await response.json()
-    return data.entry?.map((entry) => entry.resource) || []
+    return data.entry?.map((entry: any) => entry.resource) || []
   } catch (error) {
     console.error("Error fetching organizations:", error)
     throw error
   }
 }
-

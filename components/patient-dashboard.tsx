@@ -25,6 +25,7 @@ export default function PatientDashboard() {
       setError(null)
       const data = await fetchPatients(serverUrl)
       // Extract the patients array from the response
+      console.log("patient array: ", data)
       setPatients(data.patients || [])
     } catch (err) {
       setError(err.message || "Failed to load patient data")
@@ -43,8 +44,8 @@ export default function PatientDashboard() {
     const genderCounts = {
       male: 0,
       female: 0,
-      other: 0,
       unknown: 0,
+      undefined: 0,
     }
 
     if (!Array.isArray(patients)) {
@@ -56,11 +57,11 @@ export default function PatientDashboard() {
     }
 
     patients.forEach((patient) => {
-      const gender = patient.gender?.toLowerCase() || "unknown"
+      const gender = patient.gender?.toLowerCase()
       if (gender in genderCounts) {
         genderCounts[gender]++
       } else {
-        genderCounts.other++
+        genderCounts.undefined++
       }
     })
 
@@ -81,10 +82,8 @@ export default function PatientDashboard() {
   const totalPatients = patients.length
   const maleCount = patients.filter((p) => p.gender?.toLowerCase() === "male").length
   const femaleCount = patients.filter((p) => p.gender?.toLowerCase() === "female").length
-  const otherCount = patients.filter(
-    (p) => p.gender?.toLowerCase() !== "male" && p.gender?.toLowerCase() !== "female" && p.gender,
-  ).length
-  const unknownCount = patients.filter((p) => !p.gender).length
+  const unknownCount = patients.filter((p) => p.gender?.toLowerCase() === "unknown").length
+  const undefinedCount = patients.filter((p) => !p.gender).length
 
   if (loading) {
     return (
@@ -171,11 +170,11 @@ export default function PatientDashboard() {
                     color: COLORS[1],
                   },
                   other: {
-                    label: "Other",
+                    label: "Unknown",
                     color: COLORS[2],
                   },
                   unknown: {
-                    label: "Unknown",
+                    label: "Undefined",
                     color: COLORS[3],
                   },
                 }}
@@ -232,18 +231,18 @@ export default function PatientDashboard() {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="p-4 rounded-lg" style={{ backgroundColor: `${COLORS[2]}20` }}>
-                    <div className="text-sm font-medium">Other</div>
-                    <div className="text-2xl font-bold">{otherCount}</div>
-                    <div className="text-sm text-muted-foreground">
-                      {totalPatients > 0 ? `${((otherCount / totalPatients) * 100).toFixed(1)}%` : "0%"}
-                    </div>
-                  </div>
-
-                  <div className="p-4 rounded-lg" style={{ backgroundColor: `${COLORS[3]}20` }}>
                     <div className="text-sm font-medium">Unknown</div>
                     <div className="text-2xl font-bold">{unknownCount}</div>
                     <div className="text-sm text-muted-foreground">
                       {totalPatients > 0 ? `${((unknownCount / totalPatients) * 100).toFixed(1)}%` : "0%"}
+                    </div>
+                  </div>
+
+                  <div className="p-4 rounded-lg" style={{ backgroundColor: `${COLORS[3]}20` }}>
+                    <div className="text-sm font-medium">Undefined</div>
+                    <div className="text-2xl font-bold">{undefinedCount}</div>
+                    <div className="text-sm text-muted-foreground">
+                      {totalPatients > 0 ? `${((undefinedCount / totalPatients) * 100).toFixed(1)}%` : "0%"}
                     </div>
                   </div>
                 </div>
